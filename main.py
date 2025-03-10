@@ -2,10 +2,13 @@ from fastapi import FastAPI, Depends, HTTPException, Security
 from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
+from datetime import datetime
 from sqlalchemy.orm import Session
 from app.database import engine, Base, get_db
-from app.models import User, Mailbox
+from app.models import User, Mailbox, EmailMessage
+from app.services.smtp_handler import start_smtp_server
 import uuid
+import asyncio
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -15,6 +18,13 @@ app = FastAPI(
     description="Programmatic Mailbox Management System",
     version="1.0.0"
 )
+
+# Start SMTP server in the background on startup
+@app.on_event("startup")
+async def startup_event():
+    # Run in a separate thread/task so it doesn't block FastAPI
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, start_smtp_server, "0.0.0.0", 25) # Default SMTP port
 
 # --- Schemas ---
 
@@ -34,6 +44,13 @@ class MailboxResponse(BaseModel):
     id: str
     address: str
     is_active: bool
+
+class EmailResponse(BaseModel):
+    id: str
+    sender: str
+    subject: str
+    body: str
+    received_at: datetime
 
 # --- Security ---
 
@@ -98,3 +115,19 @@ def list_mailboxes(
     Lists all mailboxes associated with the current API key.
     """
     return db.query(Mailbox).filter(Mailbox.user_id == current_user.id).all()
+
+@app.get("/mailboxes/{mailbox_id}/messages", response_model=List[EmailResponse], tags=["Emails"])
+def list_messages(
+    mailbox_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Lists all incoming emails for a specific mailbox.
+    """
+    # Security check: ensure mailbox belongs to user
+    mailbox = db.query(Mailbox).filter(Mailbox.id == mailbox_id, Mailbox.user_id == current_user.id).first()
+    if not mailbox:
+        raise HTTPException(status_code=404, detail="Mailbox not found")
+    
+    return db.query(EmailMessage).filter(EmailMessage.mailbox_id == mailbox_id).all()

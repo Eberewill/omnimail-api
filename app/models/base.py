@@ -21,3 +21,14 @@ class Mailbox(Base):
     user_id = Column(String, ForeignKey("users.id"))
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class EmailMessage(Base):
+    __tablename__ = "emails"
+
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    mailbox_id = Column(String, ForeignKey("mailboxes.id"))
+    sender = Column(String)
+    subject = Column(String)
+    body = Column(String)
+    raw_content = Column(String)
+    received_at = Column(DateTime(timezone=True), server_default=func.now())
