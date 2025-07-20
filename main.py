@@ -39,10 +39,12 @@ class UserResponse(BaseModel):
 
 class MailboxCreate(BaseModel):
     address: str
+    webhook_url: Optional[str] = None
 
 class MailboxResponse(BaseModel):
     id: str
     address: str
+    webhook_url: Optional[str]
     is_active: bool
 
 class EmailResponse(BaseModel):
@@ -99,6 +101,7 @@ def create_mailbox(
     """
     db_mailbox = Mailbox(
         address=mailbox_in.address,
+        webhook_url=mailbox_in.webhook_url,
         user_id=current_user.id
     )
     db.add(db_mailbox)

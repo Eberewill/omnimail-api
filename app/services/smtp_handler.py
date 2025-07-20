@@ -1,4 +1,5 @@
 import asyncio
+import httpx
 from aiosmtpd.controller import Controller
 from email import message_from_bytes
 from sqlalchemy.orm import Session
@@ -39,6 +40,15 @@ class OmniMailHandler:
                         raw_content=envelope.content.decode('utf-8', errors='ignore')
                     )
                     db.add(new_email)
+                    
+                    # Trigger Webhook in background if configured
+                    if mailbox.webhook_url:
+                        asyncio.create_task(self.trigger_webhook(mailbox.webhook_url, {
+                            "mailbox_address": mailbox.address,
+                            "sender": sender,
+                            "subject": subject,
+                            "body": body
+                        }))
             
             db.commit()
             print("Message successfully processed and saved.")
@@ -49,6 +59,14 @@ class OmniMailHandler:
             return '500 Error processing message'
         finally:
             db.close()
+
+    async def trigger_webhook(self, url: str, data: dict):
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.post(url, json=data, timeout=5.0)
+                print(f"Webhook successfully sent to {url}")
+        except Exception as e:
+            print(f"Webhook delivery failed for {url}: {e}")
 
 def start_smtp_server(host="0.0.0.0", port=2525):
     handler = OmniMailHandler()

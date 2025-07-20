@@ -19,6 +19,7 @@ class Mailbox(Base):
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     address = Column(String, unique=True, index=True, nullable=False)
     user_id = Column(String, ForeignKey("users.id"))
+    webhook_url = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
